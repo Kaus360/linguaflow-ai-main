@@ -49,13 +49,13 @@ export default function SpeechInput() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Resolve active language: use override if set, else default en-US
+  // Resolve active language from explicit user setting.
   const requestLanguage = settings.languageOverride;
-  const langCode = requestLanguage !== "auto" ? requestLanguage : "en-US";
+  const langCode = requestLanguage;
   const LANG_LABELS: Record<string, string> = {
     "en-US": "English", "hi-IN": "Hindi", "pa-IN": "Punjabi", "mr-IN": "Marathi", "bn-IN": "Bengali",
   };
-  const langLabel = LANG_LABELS[langCode] || "Auto";
+  const langLabel = LANG_LABELS[langCode] || "English";
 
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -375,11 +375,7 @@ export default function SpeechInput() {
       <div className="flex items-center gap-2 rounded-full bg-muted px-4 py-2 text-sm">
         <Globe className="h-4 w-4 text-primary" />
         <span>
-          {settings.languageOverride === "auto" ? (
-            <>Auto-detect: <strong>English</strong></>
-          ) : (
-            <>Language: <strong>{langLabel}</strong></>
-          )}
+          Language: <strong>{langLabel}</strong>
         </span>
       </div>
 

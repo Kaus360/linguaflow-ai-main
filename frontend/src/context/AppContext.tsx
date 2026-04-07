@@ -46,8 +46,14 @@ interface AppState {
 const defaultSettings: Settings = {
   autoSpeakBack: true,
   correctionIntensity: 50,
-  languageOverride: "auto",
+  languageOverride: "en-US",
 };
+
+const normalizeSettings = (settings: Settings): Settings => ({
+  ...defaultSettings,
+  ...settings,
+  languageOverride: settings.languageOverride === "auto" ? defaultSettings.languageOverride : settings.languageOverride,
+});
 
 const AppContext = createContext<AppState | null>(null);
 
@@ -69,7 +75,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [settings, setSettings] = useState<Settings>(() => {
     const saved = localStorage.getItem("linguasense-settings");
-    return saved ? JSON.parse(saved) : defaultSettings;
+    return saved ? normalizeSettings(JSON.parse(saved)) : defaultSettings;
   });
   const [recordingStatus, setRecordingStatus] = useState<"idle" | "recording" | "processing">("idle");
   const [pipelineStep, setPipelineStep] = useState(0);
