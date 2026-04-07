@@ -84,7 +84,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [settings]);
 
   const addSession = useCallback((s: Session) => {
-    setSessions((prev) => [s, ...prev]);
+    setSessions((prev) => {
+      const next = [s, ...prev];
+      localStorage.setItem("linguasense-sessions", JSON.stringify(next));
+      return next;
+    });
     setCurrentSession(s);
   }, []);
 

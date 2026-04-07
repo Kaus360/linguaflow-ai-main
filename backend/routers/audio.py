@@ -29,6 +29,8 @@ async def upload_audio(request: Request, file: UploadFile = File(...), language:
     
     # 1. Transcribe audio to text
     recognized_text = transcribe_audio(processed_audio, language=language)
+    if not recognized_text.strip():
+        raise HTTPException(status_code=422, detail="No speech could be recognized. Please try again with a clearer recording.")
     
     # 2. Stage 1: Rule-Based Correction
     stage1_text = correct_text_stage1(recognized_text) if recognized_text else ""

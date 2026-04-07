@@ -5,6 +5,43 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
+const encodeWav = (chunks: Float32Array[], sampleRate: number) => {
+  const sampleCount = chunks.reduce((total, chunk) => total + chunk.length, 0);
+  const buffer = new ArrayBuffer(44 + sampleCount * 2);
+  const view = new DataView(buffer);
+
+  const writeString = (offset: number, value: string) => {
+    for (let i = 0; i < value.length; i += 1) {
+      view.setUint8(offset + i, value.charCodeAt(i));
+    }
+  };
+
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + sampleCount * 2, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, "data");
+  view.setUint32(40, sampleCount * 2, true);
+
+  let offset = 44;
+  chunks.forEach((chunk) => {
+    chunk.forEach((sample) => {
+      const clamped = Math.max(-1, Math.min(1, sample));
+      view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
+      offset += 2;
+    });
+  });
+
+  return new Blob([view], { type: "audio/wav" });
+};
+
 export default function SpeechInput() {
   const { recordingStatus, setRecordingStatus, setPipelineStep, addSession, settings } = useApp();
   const [timer, setTimer] = useState(0);
@@ -19,8 +56,13 @@ export default function SpeechInput() {
   };
   const langLabel = LANG_LABELS[langCode] || "Auto";
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const silenceRef = useRef<GainNode | null>(null);
+  const audioChunksRef = useRef<Float32Array[]>([]);
+  const sampleRateRef = useRef(44100);
   const [hasAudio, setHasAudio] = useState(false);
 
   const uploadAudio = useCallback(async (blob: Blob) => {
@@ -51,8 +93,8 @@ export default function SpeechInput() {
         const session: Session = {
           id: Date.now().toString(),
           timestamp: Date.now(),
-          rawText: data.recognized_text || "(empty)",
-          correctedText: data.stage2_corrected || data.stage1_corrected || data.recognized_text || "(empty)",
+          rawText: data.recognized_text,
+          correctedText: data.stage2_corrected || data.stage1_corrected || data.recognized_text,
           language: langCode,
           confidence: 0.95,
           corrections: [],
@@ -123,21 +165,29 @@ export default function SpeechInput() {
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const silence = audioContext.createGain();
+
+      silence.gain.value = 0;
+      sampleRateRef.current = audioContext.sampleRate;
       audioChunksRef.current = [];
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      processor.onaudioprocess = (event) => {
+        audioChunksRef.current.push(new Float32Array(event.inputBuffer.getChannelData(0)));
       };
 
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        if (audioChunksRef.current.length > 0) setHasAudio(true);
-        await uploadAudio(audioBlob);
-      };
+      source.connect(processor);
+      processor.connect(silence);
+      silence.connect(audioContext.destination);
 
-      mediaRecorder.start();
+      streamRef.current = stream;
+      audioContextRef.current = audioContext;
+      sourceRef.current = source;
+      processorRef.current = processor;
+      silenceRef.current = silence;
+
       setRecordingStatus("recording");
       setPipelineStep(0);
       setTimer(0);
@@ -147,16 +197,37 @@ export default function SpeechInput() {
       console.error(e);
       toast({ title: "Error", description: "Microphone access denied.", variant: "destructive" });
     }
-  }, [setRecordingStatus, setPipelineStep, toast, uploadAudio]);
+  }, [setRecordingStatus, setPipelineStep, toast]);
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && recordingStatus === "recording") {
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      setRecordingStatus("processing");
-      toast({ title: "Processing audio..." });
+    if (recordingStatus !== "recording") return;
+
+    const chunks = audioChunksRef.current;
+    const sampleRate = sampleRateRef.current;
+
+    processorRef.current?.disconnect();
+    sourceRef.current?.disconnect();
+    silenceRef.current?.disconnect();
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    void audioContextRef.current?.close();
+
+    processorRef.current = null;
+    sourceRef.current = null;
+    silenceRef.current = null;
+    streamRef.current = null;
+    audioContextRef.current = null;
+
+    if (chunks.length === 0) {
+      setRecordingStatus("idle");
+      toast({ title: "No audio captured", description: "Please try recording again.", variant: "destructive" });
+      return;
     }
-  }, [recordingStatus, setRecordingStatus, toast]);
+
+    setHasAudio(true);
+    setRecordingStatus("processing");
+    toast({ title: "Processing audio..." });
+    void uploadAudio(encodeWav(chunks, sampleRate));
+  }, [recordingStatus, setRecordingStatus, toast, uploadAudio]);
 
   useEffect(() => {
     if (recordingStatus === "recording") {
@@ -184,17 +255,24 @@ export default function SpeechInput() {
   const isProcessing = recordingStatus === "processing";
 
   const clearRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      mediaRecorderRef.current = null;
-    }
+    processorRef.current?.disconnect();
+    sourceRef.current?.disconnect();
+    silenceRef.current?.disconnect();
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    void audioContextRef.current?.close();
+
+    processorRef.current = null;
+    sourceRef.current = null;
+    silenceRef.current = null;
+    streamRef.current = null;
+    audioContextRef.current = null;
     audioChunksRef.current = [];
     setHasAudio(false);
     setTimer(0);
     setRecordingStatus("idle");
     setPipelineStep(0);
     toast({ title: "Cleared", description: "Recording has been discarded." });
-  }, [isRecording, setRecordingStatus, setPipelineStep, toast]);
+  }, [setRecordingStatus, setPipelineStep, toast]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] space-y-10 max-w-2xl mx-auto">
