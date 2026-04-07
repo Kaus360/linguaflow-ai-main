@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+python-multipart
+SpeechRecognition
+language-tool-python
+noisereduce
+webrtcvad
+edge-tts
+python-dotenv
