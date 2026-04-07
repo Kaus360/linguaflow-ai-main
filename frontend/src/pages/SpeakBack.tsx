@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Play, Pause, RotateCcw, Volume2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Play, Pause, RotateCcw, Volume2, Loader2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { useApp } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,53 @@ export default function SpeakBack() {
   const [progress, setProgress] = useState(0);
   const [volume, setVolume] = useState([75]);
   const [speed, setSpeed] = useState(1);
+  const [isLoadingTTS, setIsLoadingTTS] = useState(false);
+  
+  const audioUrlRef = useRef<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (currentSession && !audioUrlRef.current) {
+      setIsLoadingTTS(true);
+      fetch("http://localhost:8000/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: currentSession.correctedText, voice: "en-US-AriaNeural" })
+      })
+      .then(res => res.blob())
+      .then(blob => {
+        audioUrlRef.current = URL.createObjectURL(blob);
+        setIsLoadingTTS(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setIsLoadingTTS(false);
+      });
+    }
+  }, [currentSession]);
+
+  const togglePlay = () => {
+    if (!audioRef.current && audioUrlRef.current) {
+      audioRef.current = new Audio(audioUrlRef.current);
+      audioRef.current.onended = () => setPlaying(false);
+      audioRef.current.ontimeupdate = () => {
+        if (audioRef.current) {
+          setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
+        }
+      };
+    }
+    
+    if (audioRef.current) {
+      audioRef.current.volume = volume[0] / 100;
+      audioRef.current.playbackRate = speed;
+      if (playing) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
+      setPlaying(!playing);
+    }
+  };
 
   if (!currentSession) {
     return (
@@ -44,17 +91,27 @@ export default function SpeakBack() {
 
         {/* Controls */}
         <div className="flex items-center justify-center gap-6">
-          <button onClick={() => setProgress(0)} className="p-2 text-muted-foreground hover:text-foreground transition-colors">
+          <button 
+            onClick={() => {
+              if (audioRef.current) {
+                audioRef.current.currentTime = 0;
+                setProgress(0);
+              }
+            }} 
+            className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
             <RotateCcw className="h-5 w-5" />
           </button>
           <button
-            onClick={() => setPlaying(!playing)}
+            onClick={togglePlay}
+            disabled={isLoadingTTS}
             className={cn(
               "flex items-center justify-center w-14 h-14 rounded-full transition-all",
-              playing ? "bg-primary text-primary-foreground glow-primary" : "bg-muted text-foreground hover:bg-primary/20"
+              playing ? "bg-primary text-primary-foreground glow-primary" : "bg-muted text-foreground hover:bg-primary/20",
+              isLoadingTTS && "opacity-50 cursor-not-allowed"
             )}
           >
-            {playing ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6 ml-0.5" />}
+            {isLoadingTTS ? <Loader2 className="h-6 w-6 animate-spin" /> : playing ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6 ml-0.5" />}
           </button>
           <div className="flex items-center gap-2">
             <Volume2 className="h-4 w-4 text-muted-foreground" />

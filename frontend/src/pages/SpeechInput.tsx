@@ -33,8 +33,17 @@ export default function SpeechInput() {
       setPipelineStep(3);
       setTimeout(() => {
         setPipelineStep(5);
-        const session = generateMockSession();
-        addSession(session);
+        const session = {
+          id: Date.now().toString(),
+          timestamp: Date.now(),
+          rawText: data.recognized_text || "No speech detected.",
+          correctedText: data.stage2_corrected || data.stage1_corrected || "No speech detected.",
+          language: "en-US",
+          confidence: 0.95,
+          corrections: [],
+          latency: 200,
+        };
+        addSession(session as any);
         setRecordingStatus("idle");
         setPipelineStep(6);
         toast({ title: "Processing complete!", description: "Audio sent to backend successfully." });
