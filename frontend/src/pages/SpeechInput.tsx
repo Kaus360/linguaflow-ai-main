@@ -4,6 +4,8 @@ import { Mic, Square, Globe, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supportedLanguages } from "@/lib/mockData";
 
 const encodeWav = (chunks: Float32Array[], sampleRate: number) => {
   const sampleCount = chunks.reduce((total, chunk) => total + chunk.length, 0);
@@ -43,7 +45,7 @@ const encodeWav = (chunks: Float32Array[], sampleRate: number) => {
 };
 
 export default function SpeechInput() {
-  const { recordingStatus, setRecordingStatus, setPipelineStep, addSession, settings } = useApp();
+  const { recordingStatus, setRecordingStatus, setPipelineStep, addSession, settings, updateSettings } = useApp();
   const [timer, setTimer] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { toast } = useToast();
@@ -262,6 +264,7 @@ export default function SpeechInput() {
   const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
   const isRecording = recordingStatus === "recording";
   const isProcessing = recordingStatus === "processing";
+  const canClearRecording = isRecording || hasAudio || timer > 0;
 
   const clearRecording = useCallback(() => {
     processorRef.current?.disconnect();
@@ -324,11 +327,33 @@ export default function SpeechInput() {
       </div>
 
       {/* Clear Button */}
-      {(isRecording || hasAudio || timer > 0) && (
+      <div className="flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-2 rounded-lg border border-border/70 bg-muted/20 px-4 py-3 sm:flex-row">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Globe className="h-4 w-4 text-primary" />
+            <span>Correction language</span>
+          </div>
+          <Select
+            value={requestLanguage}
+            disabled={isRecording || isProcessing}
+            onValueChange={(value) => updateSettings({ languageOverride: value })}
+          >
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {supportedLanguages.map((language) => (
+                <SelectItem key={language.code} value={language.code}>
+                  {language.flag} {language.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <button
           id="clearRecordingBtn"
           onClick={clearRecording}
-          disabled={isProcessing}
+          disabled={isProcessing || !canClearRecording}
           className={cn(
             "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium border transition-all duration-200",
             "border-destructive/50 text-destructive hover:bg-destructive/10 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -337,7 +362,7 @@ export default function SpeechInput() {
           <X className="h-3.5 w-3.5" />
           Clear Recording
         </button>
-      )}
+      </div>
 
       {/* Waveform */}
       <div className="flex items-center gap-1 h-12">

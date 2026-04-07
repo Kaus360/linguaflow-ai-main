@@ -33,9 +33,11 @@ interface AppState {
   recordingStatus: "idle" | "recording" | "processing";
   pipelineStep: number;
   insightsPanelOpen: boolean;
+  ttsAudioUrls: Record<string, string>;
   setRecordingStatus: (s: "idle" | "recording" | "processing") => void;
   setPipelineStep: (n: number) => void;
   setInsightsPanelOpen: (v: boolean) => void;
+  setTtsAudioUrl: (sessionId: string, url: string) => void;
   addSession: (s: Session) => void;
   setCurrentSession: (s: Session | null) => void;
   updateSettings: (s: Partial<Settings>) => void;
@@ -80,6 +82,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [recordingStatus, setRecordingStatus] = useState<"idle" | "recording" | "processing">("idle");
   const [pipelineStep, setPipelineStep] = useState(0);
   const [insightsPanelOpen, setInsightsPanelOpen] = useState(true);
+  const [ttsAudioUrls, setTtsAudioUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     localStorage.setItem("linguasense-sessions", JSON.stringify(sessions));
@@ -100,6 +103,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateSettings = useCallback((partial: Partial<Settings>) => {
     setSettings((prev) => ({ ...prev, ...partial }));
+  }, []);
+
+  const setTtsAudioUrl = useCallback((sessionId: string, url: string) => {
+    setTtsAudioUrls((prev) => {
+      if (prev[sessionId] === url) return prev;
+      return { ...prev, [sessionId]: url };
+    });
   }, []);
 
   const acceptCorrection = useCallback((sessionId: string, correctionId: string) => {
@@ -141,9 +151,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         recordingStatus,
         pipelineStep,
         insightsPanelOpen,
+        ttsAudioUrls,
         setRecordingStatus,
         setPipelineStep,
         setInsightsPanelOpen,
+        setTtsAudioUrl,
         addSession,
         setCurrentSession,
         updateSettings,
