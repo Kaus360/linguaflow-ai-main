@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
 from utils.audio_processing import process_audio_vad_noise_reduction
 
 router = APIRouter(
@@ -6,10 +6,8 @@ router = APIRouter(
     tags=["audio"]
 )
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request
-
 @router.post("/")
-async def upload_audio(request: Request, file: UploadFile = File(...)):
+async def upload_audio(request: Request, file: UploadFile = File(...), language: str = Form("en-US")):
     # Safety Layer: File size limiting (Max 10MB) to prevent DOS
     file.file.seek(0, 2)
     file_size = file.file.tell()
@@ -17,8 +15,9 @@ async def upload_audio(request: Request, file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Payload too large. Limit is 10MB.")
     file.file.seek(0)
 
-    if not file.content_type.startswith("audio/") and not file.content_type.startswith("video/"):
-        pass
+    content_type = file.content_type or ""
+    if not content_type.startswith(("audio/", "video/")):
+        raise HTTPException(status_code=400, detail="Uploaded file must be audio or video.")
         
     audio_bytes = await file.read()
     
@@ -29,15 +28,14 @@ async def upload_audio(request: Request, file: UploadFile = File(...)):
     from utils.grammar_processor import correct_text_stage1
     
     # 1. Transcribe audio to text
-    recognized_text = transcribe_audio(processed_audio)
+    recognized_text = transcribe_audio(processed_audio, language=language)
     
     # 2. Stage 1: Rule-Based Correction
     stage1_text = correct_text_stage1(recognized_text) if recognized_text else ""
     
     # 3. Stage 2: Contextual LLM Correction via Router
     language_router = request.app.state.language_router
-    detected_lang = 'en-US' # default for now
-    stage2_result = language_router.process(detected_lang, stage1_text)
+    stage2_result = language_router.process(language, stage1_text)
     stage2_text = stage2_result.get("stage2_text", stage1_text)
 
     return {
