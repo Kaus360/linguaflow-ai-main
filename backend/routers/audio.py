@@ -17,10 +17,17 @@ async def upload_audio(file: UploadFile = File(...)):
     # Process audio (VAD & Noise Reduction)
     processed_audio = process_audio_vad_noise_reduction(audio_bytes)
     
-    # Return a success message for now. In Phase 3 we pass it to ASR.
+    from utils.asr_processor import transcribe_audio
+    from utils.grammar_processor import correct_text_stage1
+    
+    # 1. Transcribe audio to text
+    recognized_text = transcribe_audio(processed_audio)
+    
+    # 2. Stage 1: Rule-Based Correction
+    stage1_text = correct_text_stage1(recognized_text) if recognized_text else ""
+    
     return {
         "status": "success",
-        "message": "Audio received and processed (Noise Reduction + VAD).",
-        "original_size": len(audio_bytes),
-        "processed_size": len(processed_audio)
+        "recognized_text": recognized_text,
+        "stage1_corrected": stage1_text
     }
