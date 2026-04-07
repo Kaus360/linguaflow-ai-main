@@ -1,96 +1,121 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useApp } from "@/context/AppContext";
-import { generateMockSession } from "@/lib/mockData";
-import { Mic, Square, Globe, Loader2 } from "lucide-react";
+import { useApp, type Session } from "@/context/AppContext";
+import { Mic, Square, Globe, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 export default function SpeechInput() {
-  const { recordingStatus, setRecordingStatus, setPipelineStep, addSession } = useApp();
+  const { recordingStatus, setRecordingStatus, setPipelineStep, addSession, settings } = useApp();
   const [timer, setTimer] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  // Resolve active language: use override if set, else default en-US
+  const langCode = settings.languageOverride !== "auto" ? settings.languageOverride : "en-US";
+  const LANG_LABELS: Record<string, string> = {
+    "en-US": "English", "hi-IN": "Hindi", "pa-IN": "Punjabi", "mr-IN": "Marathi", "bn-IN": "Bengali",
+  };
+  const langLabel = LANG_LABELS[langCode] || "Auto";
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const [hasAudio, setHasAudio] = useState(false);
 
-  const uploadAudio = async (blob: Blob) => {
-    setPipelineStep(1); // Upload
+  const uploadAudio = useCallback(async (blob: Blob) => {
+    setPipelineStep(1);
     const formData = new FormData();
     formData.append("file", blob, "recording.wav");
+    formData.append("language", langCode);
     
     try {
-      setPipelineStep(2); // Processing
-      const response = await fetch("http://localhost:8000/api/audio", {
+      setPipelineStep(2);
+      console.log("[Audio] Sending audio to backend...");
+      const response = await fetch("http://localhost:8000/api/audio/", {
         method: "POST",
         body: formData,
       });
-      if (!response.ok) throw new Error("Backend Error");
+      console.log("[Audio] Response status:", response.status);
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("[Audio] Backend error:", errText);
+        throw new Error(`Backend Error ${response.status}: ${errText}`);
+      }
       const data = await response.json();
-      console.log("Backend response:", data);
+      console.log("[Audio] Backend response:", data);
 
-      // Simulate completion steps for UI polish
       setPipelineStep(3);
       setTimeout(() => {
         setPipelineStep(5);
-        const session = {
+        const session: Session = {
           id: Date.now().toString(),
           timestamp: Date.now(),
-          rawText: data.recognized_text || "No speech detected.",
-          correctedText: data.stage2_corrected || data.stage1_corrected || "No speech detected.",
-          language: "en-US",
+          rawText: data.recognized_text || "(empty)",
+          correctedText: data.stage2_corrected || data.stage1_corrected || data.recognized_text || "(empty)",
+          language: langCode,
           confidence: 0.95,
           corrections: [],
           latency: 200,
         };
-        addSession(session as any);
+        addSession(session);
         setRecordingStatus("idle");
         setPipelineStep(6);
-        toast({ title: "Processing complete!", description: "Audio sent to backend successfully." });
+        toast({ title: "Processing complete!", description: "Audio processed. View results in Text Output." });
+        navigate(settings.autoSpeakBack ? "/playback" : "/output");
       }, 500);
 
     } catch (err) {
-      console.error(err);
-      toast({ title: "Failed", description: "Could not complete audio processing.", variant: "destructive" });
+      console.error("[Audio] Error:", err);
+      toast({ title: "Failed", description: `Audio processing failed: ${(err as Error).message}`, variant: "destructive" });
       setRecordingStatus("idle");
     }
-  };
+  }, [addSession, langCode, navigate, setPipelineStep, setRecordingStatus, settings.autoSpeakBack, toast]);
 
   const submitTextFallback = async (text: string) => {
     if (!text.trim()) return;
-    setPipelineStep(1); 
+    setPipelineStep(1);
     setRecordingStatus("processing");
     try {
-      setPipelineStep(2); 
-      const response = await fetch("http://localhost:8000/api/text", {
+      setPipelineStep(2);
+      console.log("[Text] Sending text to backend:", text, "lang:", langCode);
+      const response = await fetch("http://localhost:8000/api/text/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, language: "en-US" }),
+        body: JSON.stringify({ text, language: langCode }),
       });
-      if (!response.ok) throw new Error("Backend Error");
+      console.log("[Text] Response status:", response.status);
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("[Text] Backend error:", errText);
+        throw new Error(`Backend Error ${response.status}: ${errText}`);
+      }
       const data = await response.json();
+      console.log("[Text] Backend response:", data);
       
       setPipelineStep(3);
       setTimeout(() => {
         setPipelineStep(5);
-        const session = {
+        const session: Session = {
           id: Date.now().toString(),
           timestamp: Date.now(),
           rawText: data.recognized_text || text,
-          correctedText: data.stage2_corrected || data.stage1_corrected || text,
-          language: "en-US",
+          correctedText: data.stage2_corrected || data.stage1_corrected || data.recognized_text || text,
+          language: langCode,
           confidence: 1.0,
           corrections: [],
           latency: 50,
         };
-        addSession(session as any);
+        console.log("[Text] Session created:", session);
+        addSession(session);
         setRecordingStatus("idle");
         setPipelineStep(6);
-        toast({ title: "Processing complete!", description: "Text processed by backend." });
+        toast({ title: "Done!", description: "Text corrected. Navigating to output..." });
+        navigate(settings.autoSpeakBack ? "/playback" : "/output");
       }, 500);
     } catch (err) {
-      console.error(err);
-      toast({ title: "Failed", description: "Could not process text.", variant: "destructive" });
+      console.error("[Text] Error:", err);
+      toast({ title: "Failed", description: `Text processing failed: ${(err as Error).message}`, variant: "destructive" });
       setRecordingStatus("idle");
     }
   };
@@ -108,6 +133,7 @@ export default function SpeechInput() {
 
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        if (audioChunksRef.current.length > 0) setHasAudio(true);
         await uploadAudio(audioBlob);
       };
 
@@ -115,12 +141,13 @@ export default function SpeechInput() {
       setRecordingStatus("recording");
       setPipelineStep(0);
       setTimer(0);
+      setHasAudio(false);
       toast({ title: "Recording started", description: "Speak now..." });
     } catch (e) {
       console.error(e);
       toast({ title: "Error", description: "Microphone access denied.", variant: "destructive" });
     }
-  }, [setRecordingStatus, setPipelineStep, toast]);
+  }, [setRecordingStatus, setPipelineStep, toast, uploadAudio]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && recordingStatus === "recording") {
@@ -155,6 +182,19 @@ export default function SpeechInput() {
   const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
   const isRecording = recordingStatus === "recording";
   const isProcessing = recordingStatus === "processing";
+
+  const clearRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      mediaRecorderRef.current = null;
+    }
+    audioChunksRef.current = [];
+    setHasAudio(false);
+    setTimer(0);
+    setRecordingStatus("idle");
+    setPipelineStep(0);
+    toast({ title: "Cleared", description: "Recording has been discarded." });
+  }, [isRecording, setRecordingStatus, setPipelineStep, toast]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] space-y-10 max-w-2xl mx-auto">
@@ -196,6 +236,22 @@ export default function SpeechInput() {
         </button>
       </div>
 
+      {/* Clear Button */}
+      {(isRecording || hasAudio || timer > 0) && (
+        <button
+          id="clearRecordingBtn"
+          onClick={clearRecording}
+          disabled={isProcessing}
+          className={cn(
+            "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium border transition-all duration-200",
+            "border-destructive/50 text-destructive hover:bg-destructive/10 disabled:opacity-40 disabled:cursor-not-allowed"
+          )}
+        >
+          <X className="h-3.5 w-3.5" />
+          Clear Recording
+        </button>
+      )}
+
       {/* Waveform */}
       <div className="flex items-center gap-1 h-12">
         {Array.from({ length: 30 }).map((_, i) => (
@@ -231,7 +287,13 @@ export default function SpeechInput() {
       {/* Language Badge */}
       <div className="flex items-center gap-2 rounded-full bg-muted px-4 py-2 text-sm">
         <Globe className="h-4 w-4 text-primary" />
-        <span>Auto-detect: <strong>English</strong></span>
+        <span>
+          {settings.languageOverride === "auto" ? (
+            <>Auto-detect: <strong>English</strong></>
+          ) : (
+            <>Language: <strong>{langLabel}</strong></>
+          )}
+        </span>
       </div>
 
       {/* Backup Plan: Text Input if Audio Fails */}
