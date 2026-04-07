@@ -4,11 +4,11 @@ import requests
 import os
 import json
 
-class EnglishPipeline(LanguagePipeline):
+class BengaliPipeline(LanguagePipeline):
     def __init__(self):
         self.examples = []
         try:
-            dataset_path = os.path.join(os.path.dirname(__file__), '..', 'datasets', 'grammar_examples.json')
+            dataset_path = os.path.join(os.path.dirname(__file__), '..', 'datasets', 'bengali_examples.json')
             if os.path.exists(dataset_path):
                 with open(dataset_path, 'r', encoding='utf-8') as f:
                     self.examples = json.load(f)
@@ -17,25 +17,22 @@ class EnglishPipeline(LanguagePipeline):
 
     def execute(self, text: str) -> dict:
         if not text.strip():
-            return {"language": "en-US", "stage2_text": ""}
+            return {"language": "bn-IN", "stage2_text": ""}
         
-        # SAFETY: strict length limitation and newlines removal for prompt
         safe_text = text.replace('\n', ' ')[:1000]
-        local_text = correct_text_stage2_local(safe_text, "en-US")
+        local_text = correct_text_stage2_local(safe_text, "bn-IN")
         api_key = os.getenv('HF_API_KEY', '').strip()
         if not api_key or api_key == 'hf_dummy_key' or api_key.startswith('your_'):
-            return {"language": "en-US", "stage2_text": local_text}
+            return {"language": "bn-IN", "stage2_text": local_text}
         
-        # Free huggingface Inference API placeholder for Stage 2 LLM
         API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-large"
         headers = {"Authorization": f"Bearer {api_key}"}
         
-        # Connect dataset 
         examples_str = ""
         for ex in self.examples[:3]:
             examples_str += f"Incorrect: {ex['incorrect']}\nCorrect: {ex['correct']}\n\n"
             
-        prompt = f"Correct the grammar and semantics of the following sentence.\n{examples_str}Incorrect: '{safe_text}'\nCorrect:"
+        prompt = f"Correct the grammar and semantics of the following Bengali sentence.\n{examples_str}Incorrect: '{safe_text}'\nCorrect:"
         payload = {"inputs": prompt}
         
         try:
@@ -44,10 +41,10 @@ class EnglishPipeline(LanguagePipeline):
                 output = response.json()
                 if isinstance(output, list) and 'generated_text' in output[0]:
                     corrected_text = output[0]['generated_text']
-                    return {"language": "en-US", "stage2_text": corrected_text}
+                    return {"language": "bn-IN", "stage2_text": corrected_text}
             
             print(f"LLM API failed with code {response.status_code}: {response.text}")
-            return {"language": "en-US", "stage2_text": local_text}
+            return {"language": "bn-IN", "stage2_text": local_text}
         except Exception as e:
             print(f"Error calling LLM: {e}")
-            return {"language": "en-US", "stage2_text": local_text}
+            return {"language": "bn-IN", "stage2_text": local_text}

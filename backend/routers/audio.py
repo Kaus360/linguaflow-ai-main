@@ -22,7 +22,7 @@ async def upload_audio(request: Request, file: UploadFile = File(...), language:
     audio_bytes = await file.read()
     
     from utils.asr_processor import transcribe_audio
-    from utils.grammar_processor import correct_text_stage1
+    from utils.grammar_processor import build_corrections, correct_text_stage1
     
     # 1. Transcribe audio to text
     recognized_text = transcribe_audio(audio_bytes, language=language)
@@ -34,16 +34,18 @@ async def upload_audio(request: Request, file: UploadFile = File(...), language:
         raise HTTPException(status_code=422, detail="No speech could be recognized. Please try again with a clearer recording.")
     
     # 2. Stage 1: Rule-Based Correction
-    stage1_text = correct_text_stage1(recognized_text) if recognized_text else ""
+    stage1_text = correct_text_stage1(recognized_text, language) if recognized_text else ""
     
     # 3. Stage 2: Contextual LLM Correction via Router
     language_router = request.app.state.language_router
     stage2_result = language_router.process(language, stage1_text)
     stage2_text = stage2_result.get("stage2_text", stage1_text)
+    corrections = build_corrections(recognized_text, stage2_text)
 
     return {
         "status": "success",
         "recognized_text": recognized_text,
         "stage1_corrected": stage1_text,
-        "stage2_corrected": stage2_text
+        "stage2_corrected": stage2_text,
+        "corrections": corrections
     }

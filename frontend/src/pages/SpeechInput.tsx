@@ -104,7 +104,7 @@ export default function SpeechInput() {
           correctedText: data.stage2_corrected || data.stage1_corrected || data.recognized_text,
           language: langCode,
           confidence: 0.95,
-          corrections: [],
+          corrections: data.corrections || [],
           latency: 200,
         };
         addSession(session);
@@ -152,7 +152,7 @@ export default function SpeechInput() {
           correctedText: data.stage2_corrected || data.stage1_corrected || data.recognized_text || text,
           language: langCode,
           confidence: 1.0,
-          corrections: [],
+          corrections: data.corrections || [],
           latency: 50,
         };
         console.log("[Text] Session created:", session);

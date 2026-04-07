@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
-from utils.grammar_processor import correct_text_stage1
+from utils.grammar_processor import build_corrections, correct_text_stage1
 
 router = APIRouter(
     prefix="/api/text",
@@ -22,16 +22,18 @@ async def process_text(request: Request, payload: TextPayload):
     original_text = payload.text
     
     # Stage 1
-    stage1_text = correct_text_stage1(original_text)
+    stage1_text = correct_text_stage1(original_text, payload.language)
     
     # Stage 2
     language_router = request.app.state.language_router
     stage2_result = language_router.process(payload.language, stage1_text)
     stage2_text = stage2_result.get("stage2_text", stage1_text)
+    corrections = build_corrections(original_text, stage2_text)
     
     return {
         "status": "success",
         "recognized_text": original_text,
         "stage1_corrected": stage1_text,
-        "stage2_corrected": stage2_text
+        "stage2_corrected": stage2_text,
+        "corrections": corrections
     }
