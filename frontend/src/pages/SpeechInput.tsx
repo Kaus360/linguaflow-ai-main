@@ -50,7 +50,8 @@ export default function SpeechInput() {
   const navigate = useNavigate();
 
   // Resolve active language: use override if set, else default en-US
-  const langCode = settings.languageOverride !== "auto" ? settings.languageOverride : "en-US";
+  const requestLanguage = settings.languageOverride;
+  const langCode = requestLanguage !== "auto" ? requestLanguage : "en-US";
   const LANG_LABELS: Record<string, string> = {
     "en-US": "English", "hi-IN": "Hindi", "pa-IN": "Punjabi", "mr-IN": "Marathi", "bn-IN": "Bengali",
   };
@@ -69,7 +70,7 @@ export default function SpeechInput() {
     setPipelineStep(1);
     const formData = new FormData();
     formData.append("file", blob, "recording.wav");
-    formData.append("language", langCode);
+    formData.append("language", requestLanguage);
     
     try {
       setPipelineStep(2);
@@ -102,7 +103,7 @@ export default function SpeechInput() {
           timestamp: Date.now(),
           rawText: data.recognized_text,
           correctedText: data.stage2_corrected || data.stage1_corrected || data.recognized_text,
-          language: langCode,
+          language: data.language || langCode,
           confidence: 0.95,
           corrections: data.corrections || [],
           latency: 200,
@@ -119,7 +120,7 @@ export default function SpeechInput() {
       toast({ title: "Failed", description: `Audio processing failed: ${(err as Error).message}`, variant: "destructive" });
       setRecordingStatus("idle");
     }
-  }, [addSession, langCode, navigate, setPipelineStep, setRecordingStatus, settings.autoSpeakBack, toast]);
+  }, [addSession, langCode, navigate, requestLanguage, setPipelineStep, setRecordingStatus, settings.autoSpeakBack, toast]);
 
   const submitTextFallback = async (text: string) => {
     if (!text.trim()) return;
@@ -131,7 +132,7 @@ export default function SpeechInput() {
       const response = await fetch("http://localhost:8000/api/text/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, language: langCode }),
+        body: JSON.stringify({ text, language: requestLanguage }),
       });
       console.log("[Text] Response status:", response.status);
       if (!response.ok) {
@@ -150,7 +151,7 @@ export default function SpeechInput() {
           timestamp: Date.now(),
           rawText: data.recognized_text || text,
           correctedText: data.stage2_corrected || data.stage1_corrected || data.recognized_text || text,
-          language: langCode,
+          language: data.language || langCode,
           confidence: 1.0,
           corrections: data.corrections || [],
           latency: 50,

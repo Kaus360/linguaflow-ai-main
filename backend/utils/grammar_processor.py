@@ -56,6 +56,19 @@ LOCAL_RULES: dict[str, list[Rule]] = {
 }
 
 
+def detect_language_from_text(text: str, default: str = "en-US") -> str:
+    for char in text:
+        codepoint = ord(char)
+        if 0x0980 <= codepoint <= 0x09FF:
+            return "bn-IN"
+        if 0x0A00 <= codepoint <= 0x0A7F:
+            return "pa-IN"
+        if 0x0900 <= codepoint <= 0x097F:
+            # Hindi and Marathi share Devanagari. Keep Hindi as the safer default.
+            return "hi-IN"
+    return default
+
+
 def _apply_local_rules(text: str, language_code: str) -> str:
     corrected = text
     for pattern, replacement in LOCAL_RULES.get(language_code, []):

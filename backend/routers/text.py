@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
-from utils.grammar_processor import build_corrections, correct_text_stage1
+from utils.grammar_processor import build_corrections, correct_text_stage1, detect_language_from_text
 
 router = APIRouter(
     prefix="/api/text",
@@ -20,18 +20,20 @@ async def process_text(request: Request, payload: TextPayload):
         raise HTTPException(status_code=400, detail="Text exceeds max length of 2000 characters.")
         
     original_text = payload.text
+    language = detect_language_from_text(original_text) if payload.language == "auto" else payload.language
     
     # Stage 1
-    stage1_text = correct_text_stage1(original_text, payload.language)
+    stage1_text = correct_text_stage1(original_text, language)
     
     # Stage 2
     language_router = request.app.state.language_router
-    stage2_result = language_router.process(payload.language, stage1_text)
+    stage2_result = language_router.process(language, stage1_text)
     stage2_text = stage2_result.get("stage2_text", stage1_text)
     corrections = build_corrections(original_text, stage2_text)
     
     return {
         "status": "success",
+        "language": language,
         "recognized_text": original_text,
         "stage1_corrected": stage1_text,
         "stage2_corrected": stage2_text,
