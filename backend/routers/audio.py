@@ -10,8 +10,14 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Request
 
 @router.post("/")
 async def upload_audio(request: Request, file: UploadFile = File(...)):
+    # Safety Layer: File size limiting (Max 10MB) to prevent DOS
+    file.file.seek(0, 2)
+    file_size = file.file.tell()
+    if file_size > 10 * 1024 * 1024: # 10MB
+        raise HTTPException(status_code=400, detail="Payload too large. Limit is 10MB.")
+    file.file.seek(0)
+
     if not file.content_type.startswith("audio/") and not file.content_type.startswith("video/"):
-        # Web browsers sometimes send blob with different mime types, be lenient for now or force in frontend
         pass
         
     audio_bytes = await file.read()

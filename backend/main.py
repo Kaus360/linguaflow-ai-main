@@ -12,13 +12,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from routers import audio, tts
+from routers import audio, tts, text
 from pipelines.language_router import LanguageRouter
 from pipelines.english import EnglishPipeline
 from pipelines.hindi import HindiPipeline
 
 app.include_router(audio.router)
 app.include_router(tts.router)
+app.include_router(text.router)
 
 router = LanguageRouter()
 router.register_strategy('en-US', EnglishPipeline())

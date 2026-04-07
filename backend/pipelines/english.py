@@ -7,11 +7,14 @@ class EnglishPipeline(LanguagePipeline):
         if not text.strip():
             return {"language": "en-US", "stage2_text": ""}
         
+        # SAFETY: strict length limitation and newlines removal for prompt
+        safe_text = text.replace('\n', ' ')[:1000]
+        
         # Free huggingface Inference API placeholder for Stage 2 LLM
         API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-large"
         headers = {"Authorization": f"Bearer {os.getenv('HF_API_KEY', 'hf_dummy_key')}"}
         
-        prompt = f"Correct the grammar and semantics of the following sentence: '{text}'"
+        prompt = f"Correct the grammar and semantics of the following sentence: '{safe_text}'"
         payload = {"inputs": prompt}
         
         try:

@@ -56,6 +56,45 @@ export default function SpeechInput() {
     }
   };
 
+  const submitTextFallback = async (text: string) => {
+    if (!text.trim()) return;
+    setPipelineStep(1); 
+    setRecordingStatus("processing");
+    try {
+      setPipelineStep(2); 
+      const response = await fetch("http://localhost:8000/api/text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, language: "en-US" }),
+      });
+      if (!response.ok) throw new Error("Backend Error");
+      const data = await response.json();
+      
+      setPipelineStep(3);
+      setTimeout(() => {
+        setPipelineStep(5);
+        const session = {
+          id: Date.now().toString(),
+          timestamp: Date.now(),
+          rawText: data.recognized_text || text,
+          correctedText: data.stage2_corrected || data.stage1_corrected || text,
+          language: "en-US",
+          confidence: 1.0,
+          corrections: [],
+          latency: 50,
+        };
+        addSession(session as any);
+        setRecordingStatus("idle");
+        setPipelineStep(6);
+        toast({ title: "Processing complete!", description: "Text processed by backend." });
+      }, 500);
+    } catch (err) {
+      console.error(err);
+      toast({ title: "Failed", description: "Could not process text.", variant: "destructive" });
+      setRecordingStatus("idle");
+    }
+  };
+
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -193,6 +232,31 @@ export default function SpeechInput() {
       <div className="flex items-center gap-2 rounded-full bg-muted px-4 py-2 text-sm">
         <Globe className="h-4 w-4 text-primary" />
         <span>Auto-detect: <strong>English</strong></span>
+      </div>
+
+      {/* Backup Plan: Text Input if Audio Fails */}
+      <div className="w-full max-w-md pt-8 border-t border-border/50">
+        <p className="text-sm font-medium mb-3 text-muted-foreground">Audio microphone failing? Use backup plan:</p>
+        <div className="relative">
+          <textarea 
+            id="fallbackTextInput"
+            className="w-full flex min-h-[100px] rounded-xl border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            placeholder="Type or paste your text here to process..."
+          />
+          <button
+            disabled={isProcessing}
+            onClick={() => {
+              const el = document.getElementById("fallbackTextInput") as HTMLTextAreaElement;
+              if (el && el.value) {
+                submitTextFallback(el.value);
+                el.value = "";
+              }
+            }}
+            className="absolute bottom-2 right-2 bg-primary text-primary-foreground text-xs px-4 py-2 font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors shadow-sm"
+          >
+            Submit Text
+          </button>
+        </div>
       </div>
     </div>
   );
