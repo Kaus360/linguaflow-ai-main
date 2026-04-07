@@ -47,9 +47,17 @@ class CorrectionPipelineTests(unittest.TestCase):
     def test_stage1_corrects_supported_indic_languages(self):
         cases = [
             ("hi-IN", "\u092e\u0948\u0902 \u091c\u093e\u0924\u093e \u0939\u0948", "\u092e\u0948\u0902 \u091c\u093e\u0924\u093e \u0939\u0942\u0901\u0964"),
+            ("hi-IN", "\u092e\u0948\u0902 \u0915\u0932 \u0935\u093f\u0926\u094d\u092f\u093e\u0932\u092f \u0917\u092f\u093e \u0939\u0948", "\u092e\u0948\u0902 \u0915\u0932 \u0935\u093f\u0926\u094d\u092f\u093e\u0932\u092f \u0917\u092f\u093e \u0925\u093e\u0964"),
+            ("hi-IN", "\u0939\u092e \u091c\u093e\u0924\u093e \u0939\u0948", "\u0939\u092e \u091c\u093e\u0924\u0947 \u0939\u0948\u0902\u0964"),
             ("mr-IN", "\u092e\u0940 \u091c\u093e\u0924\u094b \u0906\u0939\u0947", "\u092e\u0940 \u091c\u093e\u0924 \u0906\u0939\u0947\u0964"),
+            ("mr-IN", "\u092e\u0940 \u0915\u093e\u0932 \u0936\u093e\u0933\u0947\u0924 \u091c\u093e\u0924\u094b", "\u092e\u0940 \u0915\u093e\u0932 \u0936\u093e\u0933\u0947\u0924 \u0917\u0947\u0932\u094b\u0964"),
+            ("mr-IN", "\u0906\u092e\u094d\u0939\u0940 \u091c\u093e\u0924\u094b \u0906\u0939\u0947", "\u0906\u092e\u094d\u0939\u0940 \u091c\u093e\u0924 \u0906\u0939\u094b\u0924\u0964"),
             ("bn-IN", "\u0986\u09ae\u09bf \u09af\u09be\u099a\u09cd\u099b\u09bf \u09b9\u09af\u09bc", "\u0986\u09ae\u09bf \u09af\u09be\u099a\u09cd\u099b\u09bf\u0964"),
+            ("bn-IN", "\u0986\u09ae\u09bf \u0995\u09be\u09b2 \u09b8\u09cd\u0995\u09c1\u09b2\u09c7 \u09af\u09be\u0987", "\u0986\u09ae\u09bf \u0995\u09be\u09b2 \u09b8\u09cd\u0995\u09c1\u09b2\u09c7 \u0997\u09bf\u09af\u09bc\u09c7\u099b\u09bf\u09b2\u09be\u09ae\u0964"),
+            ("bn-IN", "\u0986\u09ae\u09bf \u09b8\u09cd\u0995\u09c1\u09b2\u09c7 \u0997\u09bf\u09af\u09bc\u09c7\u099b\u09c7", "\u0986\u09ae\u09bf \u09b8\u09cd\u0995\u09c1\u09b2\u09c7 \u0997\u09bf\u09af\u09bc\u09c7\u099b\u09bf\u09b2\u09be\u09ae\u0964"),
             ("pa-IN", "\u0a2e\u0a48\u0a02 \u0a1c\u0a3e\u0a02\u0a26\u0a3e \u0a39\u0a48", "\u0a2e\u0a48\u0a02 \u0a1c\u0a3e\u0a02\u0a26\u0a3e \u0a39\u0a3e\u0a02\u0964"),
+            ("pa-IN", "\u0a2e\u0a48\u0a02 \u0a15\u0a71\u0a32\u0a4d\u0a39 \u0a38\u0a15\u0a42\u0a32 \u0a17\u0a3f\u0a06 \u0a39\u0a48", "\u0a2e\u0a48\u0a02 \u0a15\u0a71\u0a32\u0a4d\u0a39 \u0a38\u0a15\u0a42\u0a32 \u0a17\u0a3f\u0a06 \u0a38\u0a40\u0964"),
+            ("pa-IN", "\u0a05\u0a38\u0a40\u0a02 \u0a1c\u0a3e\u0a02\u0a26\u0a3e \u0a39\u0a48", "\u0a05\u0a38\u0a40\u0a02 \u0a1c\u0a3e\u0a02\u0a26\u0a47 \u0a39\u0a3e\u0a02\u0964"),
         ]
         for language, raw, expected in cases:
             with self.subTest(language=language):
@@ -76,6 +84,20 @@ class CorrectionPipelineTests(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["stage2_corrected"], "I went to the park yesterday.")
         self.assertEqual(payload["language"], "en-US")
+        self.assertTrue(payload["corrections"])
+
+    def test_text_endpoint_corrects_hindi_past_tense_asr_error(self):
+        response = self.client.post(
+            "/api/text/",
+            json={
+                "text": "\u092e\u0948\u0902 \u0915\u0932 \u0935\u093f\u0926\u094d\u092f\u093e\u0932\u092f \u0917\u092f\u093e \u0939\u0948",
+                "language": "hi-IN",
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        self.assertEqual(payload["stage2_corrected"], "\u092e\u0948\u0902 \u0915\u0932 \u0935\u093f\u0926\u094d\u092f\u093e\u0932\u092f \u0917\u092f\u093e \u0925\u093e\u0964")
+        self.assertEqual(payload["language"], "hi-IN")
         self.assertTrue(payload["corrections"])
 
     def test_auto_text_endpoint_detects_non_english_scripts(self):
