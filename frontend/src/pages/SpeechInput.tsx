@@ -81,8 +81,15 @@ export default function SpeechInput() {
       console.log("[Audio] Response status:", response.status);
       if (!response.ok) {
         const errText = await response.text();
+        let message = errText;
+        try {
+          const parsed = JSON.parse(errText) as { detail?: string; message?: string };
+          message = parsed.detail || parsed.message || errText;
+        } catch {
+          // Keep the raw backend response when it is not JSON.
+        }
         console.error("[Audio] Backend error:", errText);
-        throw new Error(`Backend Error ${response.status}: ${errText}`);
+        throw new Error(`Backend Error ${response.status}: ${message}`);
       }
       const data = await response.json();
       console.log("[Audio] Backend response:", data);
@@ -166,6 +173,7 @@ export default function SpeechInput() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const audioContext = new AudioContext();
+      await audioContext.resume();
       const source = audioContext.createMediaStreamSource(stream);
       const processor = audioContext.createScriptProcessor(4096, 1, 1);
       const silence = audioContext.createGain();

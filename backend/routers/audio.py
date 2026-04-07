@@ -21,14 +21,15 @@ async def upload_audio(request: Request, file: UploadFile = File(...), language:
         
     audio_bytes = await file.read()
     
-    # Process audio (VAD & Noise Reduction)
-    processed_audio = process_audio_vad_noise_reduction(audio_bytes)
-    
     from utils.asr_processor import transcribe_audio
     from utils.grammar_processor import correct_text_stage1
     
     # 1. Transcribe audio to text
-    recognized_text = transcribe_audio(processed_audio, language=language)
+    recognized_text = transcribe_audio(audio_bytes, language=language)
+    if not recognized_text.strip():
+        processed_audio = process_audio_vad_noise_reduction(audio_bytes)
+        if processed_audio != audio_bytes:
+            recognized_text = transcribe_audio(processed_audio, language=language)
     if not recognized_text.strip():
         raise HTTPException(status_code=422, detail="No speech could be recognized. Please try again with a clearer recording.")
     
