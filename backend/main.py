@@ -13,7 +13,16 @@ app.add_middleware(
 )
 
 from routers import audio
+from pipelines.language_router import LanguageRouter
+from pipelines.english import EnglishPipeline
+from pipelines.hindi import HindiPipeline
+
 app.include_router(audio.router)
+
+router = LanguageRouter()
+router.register_strategy('en-US', EnglishPipeline())
+router.register_strategy('hi-IN', HindiPipeline())
+app.state.language_router = router
 
 @app.get("/")
 def read_root():

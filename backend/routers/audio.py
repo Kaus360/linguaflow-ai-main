@@ -6,8 +6,10 @@ router = APIRouter(
     tags=["audio"]
 )
 
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request
+
 @router.post("/")
-async def upload_audio(file: UploadFile = File(...)):
+async def upload_audio(request: Request, file: UploadFile = File(...)):
     if not file.content_type.startswith("audio/") and not file.content_type.startswith("video/"):
         # Web browsers sometimes send blob with different mime types, be lenient for now or force in frontend
         pass
@@ -26,8 +28,15 @@ async def upload_audio(file: UploadFile = File(...)):
     # 2. Stage 1: Rule-Based Correction
     stage1_text = correct_text_stage1(recognized_text) if recognized_text else ""
     
+    # 3. Stage 2: Contextual LLM Correction via Router
+    language_router = request.app.state.language_router
+    detected_lang = 'en-US' # default for now
+    stage2_result = language_router.process(detected_lang, stage1_text)
+    stage2_text = stage2_result.get("stage2_text", stage1_text)
+
     return {
         "status": "success",
         "recognized_text": recognized_text,
-        "stage1_corrected": stage1_text
+        "stage1_corrected": stage1_text,
+        "stage2_corrected": stage2_text
     }
