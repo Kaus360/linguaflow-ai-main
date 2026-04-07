@@ -12,6 +12,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from routers import audio
+app.include_router(audio.router)
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to LinguaFlow AI API. Systems are online."}

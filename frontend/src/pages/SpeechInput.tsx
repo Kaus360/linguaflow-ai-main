@@ -11,32 +11,77 @@ export default function SpeechInput() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { toast } = useToast();
 
-  const startRecording = useCallback(() => {
-    setRecordingStatus("recording");
-    setPipelineStep(0);
-    setTimer(0);
-    toast({ title: "Recording started", description: "Speak now..." });
-  }, [setRecordingStatus, setPipelineStep, toast]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
-  const stopRecording = useCallback(() => {
-    setRecordingStatus("processing");
-    toast({ title: "Processing audio..." });
+  const uploadAudio = async (blob: Blob) => {
+    setPipelineStep(1); // Upload
+    const formData = new FormData();
+    formData.append("file", blob, "recording.wav");
+    
+    try {
+      setPipelineStep(2); // Processing
+      const response = await fetch("http://localhost:8000/api/audio", {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) throw new Error("Backend Error");
+      const data = await response.json();
+      console.log("Backend response:", data);
 
-    // Simulate pipeline steps
-    let step = 0;
-    const stepInterval = setInterval(() => {
-      step++;
-      setPipelineStep(step);
-      if (step >= 5) {
-        clearInterval(stepInterval);
+      // Simulate completion steps for UI polish
+      setPipelineStep(3);
+      setTimeout(() => {
+        setPipelineStep(5);
         const session = generateMockSession();
         addSession(session);
         setRecordingStatus("idle");
         setPipelineStep(6);
-        toast({ title: "Processing complete!", description: "View results in Text Output." });
-      }
-    }, 600);
-  }, [setRecordingStatus, setPipelineStep, addSession, toast]);
+        toast({ title: "Processing complete!", description: "Audio sent to backend successfully." });
+      }, 500);
+
+    } catch (err) {
+      console.error(err);
+      toast({ title: "Failed", description: "Could not complete audio processing.", variant: "destructive" });
+      setRecordingStatus("idle");
+    }
+  };
+
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        await uploadAudio(audioBlob);
+      };
+
+      mediaRecorder.start();
+      setRecordingStatus("recording");
+      setPipelineStep(0);
+      setTimer(0);
+      toast({ title: "Recording started", description: "Speak now..." });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Error", description: "Microphone access denied.", variant: "destructive" });
+    }
+  }, [setRecordingStatus, setPipelineStep, toast]);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && recordingStatus === "recording") {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      setRecordingStatus("processing");
+      toast({ title: "Processing audio..." });
+    }
+  }, [recordingStatus, setRecordingStatus, toast]);
 
   useEffect(() => {
     if (recordingStatus === "recording") {
