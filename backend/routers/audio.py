@@ -22,10 +22,11 @@ async def upload_audio(request: Request, file: UploadFile = File(...), language:
     audio_bytes = await file.read()
     
     from utils.asr_processor import transcribe_audio
-    from utils.grammar_processor import build_corrections, correct_text_stage1, detect_language_from_text
+    from utils.grammar_processor import build_corrections, correct_text_stage1, detect_language_from_text, normalize_language_code
     
     # 1. Transcribe audio to text
-    candidate_languages = ["en-US", "hi-IN", "mr-IN", "bn-IN", "pa-IN"] if language == "auto" else [language]
+    requested_language = normalize_language_code(language) if language != "auto" else "auto"
+    candidate_languages = ["en-US", "hi-IN", "mr-IN", "bn-IN", "pa-IN"] if requested_language == "auto" else [requested_language]
     recognized_text = ""
     resolved_language = candidate_languages[0]
     for candidate_language in candidate_languages:
@@ -44,7 +45,7 @@ async def upload_audio(request: Request, file: UploadFile = File(...), language:
                     break
     if not recognized_text.strip():
         raise HTTPException(status_code=422, detail="No speech could be recognized. Please try again with a clearer recording.")
-    if language == "auto":
+    if requested_language == "auto":
         resolved_language = detect_language_from_text(recognized_text, resolved_language)
     
     # 2. Stage 1: Rule-Based Correction

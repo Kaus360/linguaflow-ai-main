@@ -1,3 +1,4 @@
+import os
 import re
 from difflib import SequenceMatcher
 
@@ -8,25 +9,30 @@ except ImportError:
 
 # Fallback mechanism if Public API is rate-limited
 tool_en = None
-try:
-    if language_tool_python is not None:
-        tool_en = language_tool_python.LanguageToolPublicAPI('en-US')
-except Exception as e:
-    print(f"Warning: LanguageTool API unavailable initially: {e}")
 
 Rule = tuple[str, str]
+SUPPORTED_LANGUAGES = {"en-US", "hi-IN", "mr-IN", "bn-IN", "pa-IN"}
 
 LOCAL_RULES: dict[str, list[Rule]] = {
     "en-US": [
+        (r"\bI am go(?:ing)? to ([a-z]+)\b", r"I am going to the \1"),
         (r"\bI go to ([a-z]+) yesterday\b", r"I went to the \1 yesterday"),
         (r"\bI go to the ([a-z]+) yesterday\b", r"I went to the \1 yesterday"),
+        (r"\bI went to ([a-z]+) yesterday\b", r"I went to the \1 yesterday"),
         (r"\bI goes\b", "I go"),
+        (r"\bI has\b", "I have"),
+        (r"\bI have went\b", "I went"),
         (r"\bShe don't\b", "She doesn't"),
         (r"\bHe don't\b", "He doesn't"),
+        (r"\bThey doesn't\b", "They don't"),
         (r"\bHe have\b", "He has"),
         (r"\bShe have\b", "She has"),
+        (r"\bthere is many problem\b", "there are many problems"),
+        (r"\bthere is many\b", "there are many"),
         (r"\bthe informations\b", "the information"),
+        (r"\binformations\b", "information"),
         (r"\bmany time\b", "many times"),
+        (r"\bvery very\b", "very"),
         (r"\bi\b", "I"),
     ],
     "hi-IN": [
@@ -69,6 +75,14 @@ def detect_language_from_text(text: str, default: str = "en-US") -> str:
     return default
 
 
+def normalize_language_code(language_code: str, text: str = "", default: str = "en-US") -> str:
+    if language_code == "auto":
+        return detect_language_from_text(text, default)
+    if language_code in SUPPORTED_LANGUAGES:
+        return language_code
+    return detect_language_from_text(text, default)
+
+
 def _apply_local_rules(text: str, language_code: str) -> str:
     corrected = text
     for pattern, replacement in LOCAL_RULES.get(language_code, []):
@@ -102,7 +116,7 @@ def correct_text_stage1(text: str, language_code: str = 'en-US') -> str:
             return corrected_text
 
         global tool_en
-        if language_tool_python is None:
+        if language_tool_python is None or os.getenv("ENABLE_LANGUAGE_TOOL", "").lower() not in {"1", "true", "yes"}:
             return corrected_text
         if tool_en is None:
             tool_en = language_tool_python.LanguageToolPublicAPI('en-US')

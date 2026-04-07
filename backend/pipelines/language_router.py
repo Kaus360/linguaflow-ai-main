@@ -6,6 +6,7 @@ class LanguageRouter:
         self.strategies[language] = strategy
 
     def process(self, language, text):
-        if language not in self.strategies:
-            raise ValueError(f"Language '{language}' is not supported.")
-        return self.strategies[language].execute(text)
+        strategy = self.strategies.get(language) or self.strategies.get("en-US")
+        if strategy is None:
+            raise ValueError(f"Language '{language}' is not supported and no fallback is registered.")
+        return strategy.execute(text)
