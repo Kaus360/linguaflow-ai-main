@@ -8,8 +8,8 @@
     "dev:backend": "node start-backend.js",
     "dev:frontend": "npm --prefix frontend run dev",
     "install:all": "npm --prefix frontend install",
-    "test:backend": "node -e \"require('child_process').execSync('venv\\\\Scripts\\\\python.exe test_all_langs.py', {stdio:'inherit'})\"",
-    "test:connections": "node -e \"require('child_process').execSync('venv\\\\Scripts\\\\python.exe test_connections.py', {stdio:'inherit'})\""
+    "test:backend": "node -e \"require('child_process').execSync('venv\\\\Scripts\\\\python.exe test_correction_pipeline.py', {stdio:'inherit'})\"",
+    "test:security": "node -e \"require('child_process').execSync('venv\\\\Scripts\\\\python.exe test_security.py', {stdio:'inherit'})\""
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

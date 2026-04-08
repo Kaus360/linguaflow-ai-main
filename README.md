@@ -54,12 +54,12 @@ The application is designed to fall back to local rule/pipeline behavior when th
 ## Tests
 
 ```powershell
-python test_correction_pipeline.py
-python test_all_langs.py
+.\venv\Scripts\python.exe test_correction_pipeline.py
+.\venv\Scripts\python.exe test_security.py
 npm --prefix frontend test
 ```
 
-Some connection tests call external services such as Edge TTS or LanguageTool, so run those only when network access is available.
+The correction suite uses the local fallback path when no Hugging Face key is configured. Some lower-level libraries may call local services or package-managed dependencies during setup, so run tests from the project virtual environment.
 
 ## Portfolio Notes
 
