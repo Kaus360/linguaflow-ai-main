@@ -1,10 +1,12 @@
 import { useApp } from "@/context/AppContext";
 import { supportedLanguages } from "@/lib/mockData";
-import { CheckCircle, AlertCircle, Clock, Activity, Cpu, Zap, Signal } from "lucide-react";
+import { CheckCircle, AlertCircle, Clock, Activity, Cpu, Zap, Signal, ChevronRight } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useNavigate } from "react-router-dom";
 
 export default function Dashboard() {
-  const { sessions } = useApp();
+  const { sessions, setCurrentSession } = useApp();
+  const navigate = useNavigate();
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
@@ -83,18 +85,23 @@ export default function Dashboard() {
         ) : (
           <div className="space-y-2">
             {sessions.slice(0, 5).map((s) => (
-              <div key={s.id} className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3 hover:bg-muted transition-colors">
-                <div className="flex items-center gap-3">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium truncate max-w-md">{s.rawText.slice(0, 60)}...</p>
-                    <p className="text-xs text-muted-foreground font-mono">{s.language} • {s.corrections.length} corrections</p>
+              <button
+                key={s.id}
+                onClick={() => { setCurrentSession(s); navigate("/output"); }}
+                className="w-full flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3 hover:bg-muted transition-colors text-left group"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate max-w-md">{s.rawText.slice(0, 60)}{s.rawText.length > 60 ? "…" : ""}</p>
+                    <p className="text-xs text-muted-foreground font-mono">{s.language} · {s.corrections.length} corrections</p>
                   </div>
                 </div>
-                <span className="text-xs text-muted-foreground font-mono shrink-0">
-                  {formatDistanceToNow(s.timestamp, { addSuffix: true })}
-                </span>
-              </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-muted-foreground font-mono">{formatDistanceToNow(s.timestamp, { addSuffix: true })}</span>
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              </button>
             ))}
           </div>
         )}

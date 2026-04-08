@@ -22,11 +22,11 @@ export const generateMockSession = (): Session => ({
 });
 
 export const supportedLanguages = [
-  { code: "hi", name: "Hindi", flag: "🇮🇳" },
-  { code: "en", name: "English", flag: "🇺🇸" },
-  { code: "pa", name: "Punjabi", flag: "🇮🇳" },
-  { code: "mr", name: "Marathi", flag: "🇮🇳" },
-  { code: "bn", name: "Bengali", flag: "🇮🇳" },
+  { code: "en-US", name: "English", flag: "🇺🇸" },
+  { code: "hi-IN", name: "Hindi",   flag: "🇮🇳" },
+  { code: "pa-IN", name: "Punjabi", flag: "🇮🇳" },
+  { code: "mr-IN", name: "Marathi", flag: "🇮🇳" },
+  { code: "bn-IN", name: "Bengali", flag: "🇧🇩" },
 ];
 
 export const pipelineSteps = [

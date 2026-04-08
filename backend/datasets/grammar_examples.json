@@ -1,0 +1,14 @@
+[
+  {
+    "incorrect": "I goes to the store yesterday.",
+    "correct": "I went to the store yesterday."
+  },
+  {
+    "incorrect": "She don't like apples at all.",
+    "correct": "She doesn't like apples at all."
+  },
+  {
+    "incorrect": "He have been there many time.",
+    "correct": "He has been there many times."
+  }
+]
